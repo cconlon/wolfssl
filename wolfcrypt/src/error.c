@@ -337,6 +337,9 @@ const char* wc_GetErrorString(int error)
     case SRP_BAD_KEY_E:
         return "SRP bad key values error";
 
+    case WC_PENDING_E:
+        return "wolfCrypt Operation Pending (would block / eagain) error";
+
     default:
         return "unknown error number";
 

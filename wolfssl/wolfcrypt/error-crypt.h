@@ -161,7 +161,8 @@ enum {
     KEYUSAGE_E          = -226,  /* Bad Key Usage value */
     CERTPOLICIES_E      = -227,  /* setting Certificate Policies error */
 
-    WC_FAILURE_E        = -228,  /* wolfcrypt failed to initialize */
+    WC_FAILURE_E        = -228,  /* wolfCrypt failed to initialize */
+    WC_PENDING_E        = -229,  /* wolfCrypt operation pending (would block) */
 
     MIN_CODE_E          = -300   /* errors -101 - -299 */
 };
