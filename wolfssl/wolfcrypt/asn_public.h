@@ -28,6 +28,9 @@
 #ifdef HAVE_ECC
     #include <wolfssl/wolfcrypt/ecc.h>
 #endif
+#ifndef NO_DH
+    #include <wolfssl/wolfcrypt/dh.h>
+#endif
 #if defined(WOLFSSL_CERT_GEN) && !defined(NO_RSA)
     #include <wolfssl/wolfcrypt/rsa.h>
 #endif
@@ -261,6 +264,12 @@ WOLFSSL_API int wc_SetKeyUsage(Cert *cert, const char *value);
         WOLFSSL_API int wc_EccPublicKeyToDer(ecc_key*, byte* output,
                                                word32 inLen, int with_AlgCurve);
     #endif
+#endif
+
+#ifndef NO_DH
+WOLFSSL_API int wc_DhParameterToDer(DhKey* key, byte* output, word32* outSz);
+WOLFSSL_API int wc_DhKeyToPKCS8(DhKey* key, byte* priv, word32 privSz,
+                                byte* output, word32* outSz);
 #endif
 
 /* DER encode signature */

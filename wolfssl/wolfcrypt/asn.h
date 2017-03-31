@@ -247,7 +247,8 @@ enum Key_Sum {
     DSAk   = 515,
     RSAk   = 645,
     NTRUk  = 274,
-    ECDSAk = 518
+    ECDSAk = 518,
+    DHk    = 647
 };
 
 

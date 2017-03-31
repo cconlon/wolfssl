@@ -819,6 +819,9 @@ static const byte hashSha512hOid[] = {96, 134, 72, 1, 101, 3, 4, 2, 3};
 #ifdef HAVE_ECC
     static const byte keyEcdsaOid[] = {42, 134, 72, 206, 61, 2, 1};
 #endif /* HAVE_ECC */
+#ifndef NO_DH
+    static const byte keyDhOid[] = {42, 134, 72, 134, 247, 13, 1, 3, 1};
+#endif /* NO_DH */
 
 /* curveType */
 #ifdef HAVE_ECC
@@ -1015,6 +1018,12 @@ static const byte* OidFromId(word32 id, word32 type, word32* oidSz)
                     *oidSz = sizeof(keyEcdsaOid);
                     break;
                 #endif /* HAVE_ECC */
+                #ifndef NO_DH
+                case DHk:
+                    oid = keyDhOid;
+                    *oidSz = sizeof(keyDhOid);
+                    break;
+                #endif /* NO_DH */
                 default:
                     break;
             }
@@ -2489,6 +2498,221 @@ int wc_RsaPublicKeyDecodeRaw(const byte* n, word32 nSz, const byte* e,
 #endif
 
 #ifndef NO_DH
+
+/* Exports DH parameters as PKCS#3 DER format:
+ *
+ *     DHParameter ::= SEQUENCE {
+ *       prime INTEGER, -- p
+ *       base INTEGER, -- g
+ *       privateValueLength INTEGER OPTIONAL }
+ *
+ * If output is NULL, will return needed output buffer size
+ * in outSz and LENGTH_ONLY_E as return.
+ *
+ * key     DhKey containing parameters
+ * output  output buffer for DER encoding
+ * outSz   size of output buffer
+ *
+ * returns length on success, negative on error
+ */
+int wc_DhParameterToDer(DhKey* key, byte* output, word32* outSz)
+{
+    byte paramSeq[MAX_SEQ_SZ];
+    byte p[MAX_LENGTH_SZ + 1];  /* 1 = ASN_INTEGER */
+    byte g[MAX_LENGTH_SZ + 1];
+
+    byte* paramP = NULL, *paramG = NULL;
+
+    int ret, paramPSz, paramGSz;
+    int paramSeqSz, pSz, gSz;
+    int leadingP = 0, leadingG = 0;
+    word32 totalSz = 0, idx = 0;
+
+    if (key == NULL || outSz == NULL)
+        return BAD_FUNC_ARG;
+
+    /* return required output buffer size if output is NULL */
+    paramPSz = mp_unsigned_bin_size(&key->p);
+    paramGSz = mp_unsigned_bin_size(&key->g);
+    leadingP = mp_leading_bit(&key->p);
+    leadingG = mp_leading_bit(&key->g);
+        
+    if (output == NULL) {
+        totalSz = MAX_SEQ_SZ + (MAX_LENGTH_SZ * 2) + 2 +
+                  paramPSz + paramGSz + leadingP + leadingG;
+        *outSz = totalSz;
+        return LENGTH_ONLY_E;
+    }
+
+    /* prime */
+    paramP = (byte*)XMALLOC(paramPSz, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+    if (paramP == NULL)
+        return MEMORY_E;
+
+    ret = mp_to_unsigned_bin(&key->p, paramP);
+    if (ret != MP_OKAY) {
+        XFREE(paramP, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+        return ret;
+    }
+
+    p[0] = ASN_INTEGER;
+    pSz = SetLength(paramPSz + leadingP, p + 1) + 1;
+    totalSz += (pSz + leadingP + paramPSz);
+
+    /* base */
+    paramG = (byte*)XMALLOC(paramGSz, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+    if (paramG == NULL) {
+        XFREE(paramP, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+        return MEMORY_E;
+    }
+
+    ret = mp_to_unsigned_bin(&key->g, paramG);
+    if (ret != MP_OKAY) {
+        XFREE(paramP, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+        XFREE(paramG, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+        return ret;
+    }
+
+    g[0] = ASN_INTEGER;
+    gSz = SetLength(paramGSz + leadingG, g + 1) + 1;
+    totalSz += (gSz + leadingG + paramGSz);
+
+    /* DHParameter */
+    paramSeqSz = SetSequence(pSz + leadingP + paramPSz +
+                             gSz + leadingG + paramGSz, paramSeq);
+    totalSz += paramSeqSz;
+
+    if (*outSz < totalSz) {
+        XFREE(paramP, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+        XFREE(paramG, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+        return BUFFER_E;
+    }
+
+    /* build output */
+    XMEMCPY(output + idx, paramSeq, paramSeqSz);
+    idx += paramSeqSz;
+    XMEMCPY(output + idx, p, pSz);
+    idx += pSz;
+    if (leadingP) {
+        output[idx++] = 0;
+    }
+    XMEMCPY(output + idx, paramP, paramPSz);
+    idx += paramPSz;
+    XMEMCPY(output + idx, g, gSz);
+    idx += gSz;
+    if (leadingG) {
+        output[idx++] = 0;
+    }
+    XMEMCPY(output + idx, paramG, paramGSz);
+    idx += paramGSz;
+
+    XFREE(paramP, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+    XFREE(paramG, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+
+    return idx;
+}
+
+/* Exports private or pubilc DH key as PKCS#3 DER format.
+ *
+ * If output is NULL, will return needed output buffer size
+ * in outSz and LENGTH_ONLY_E as return.
+ *
+ * key      DhKey containing parameters
+ * keyBuf   buffer containing raw private or public key bytes
+ * keyBufSz size of keyBuf in octets
+ * output   output buffer for DER encoding
+ * outSz    size of output buffer
+ *
+ * returns length on success, negative on error
+ */
+int wc_DhKeyToPKCS8(DhKey* key, byte* keyBuf, word32 keyBufSz,
+                    byte* output, word32* outSz)
+{
+    int ret, leadingPriv = 0;
+    int seqSz, verSz, pkAlgSz, prvSz;
+
+    byte* params;
+    word32 paramSz, totalSz, idx = 0;
+
+    byte seq[MAX_SEQ_SZ];
+    byte ver[MAX_VERSION_SZ];
+    byte pkAlg[MAX_ALGO_SZ];
+    byte prv[MAX_LENGTH_SZ + 1];  /* 1 for ASN_INTEGER */
+
+    if (key == NULL || keyBuf == NULL || outSz == NULL)
+        return BAD_FUNC_ARG;
+
+    /* calculate needed param buffer sz */
+    ret = wc_DhParameterToDer(key, NULL, &paramSz);
+    if (ret != LENGTH_ONLY_E)
+        return ret;
+
+    /* set leading bit on private */
+    if (keyBuf[0] & 0x80)
+        leadingPriv = 1;
+
+    /* return required output buffer size if output is NULL */
+    if (output == NULL) {
+        /* 2 = ASN_OCTET_STRING + len */
+        /* 1 = ASN_INTEGER */
+        totalSz = MAX_SEQ_SZ + MAX_VERSION_SZ + MAX_ALGO_SZ +
+                  paramSz + 2 + MAX_LENGTH_SZ + 1 + leadingPriv + keyBufSz;
+        *outSz = totalSz;
+        return LENGTH_ONLY_E;
+    }
+
+    params = (byte*)XMALLOC(paramSz, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+    if (params == NULL)
+        return MEMORY_E;
+
+    ret = wc_DhParameterToDer(key, params, &paramSz);
+    if (ret < 0) {
+        XFREE(params, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+        return ret;
+    }
+    paramSz = ret;
+
+    /* private key */
+    prv[0] = ASN_INTEGER;
+    prvSz  = SetLength(keyBufSz + leadingPriv, prv + 1) + 1;
+
+    pkAlgSz = SetAlgoID(DHk, pkAlg, oidKeyType, paramSz);
+
+    verSz = SetMyVersion(0, ver, FALSE);
+
+    seqSz = SetSequence(verSz + pkAlgSz + paramSz + 2 + prvSz +
+                        leadingPriv + keyBufSz, seq);
+
+    if (*outSz < (seqSz + verSz + pkAlgSz + paramSz + 2 + prvSz +
+                 leadingPriv + keyBufSz)) {
+        XFREE(params, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+        return BUFFER_E;
+    }
+
+    /* build output */
+    XMEMCPY(output + idx, seq, seqSz);
+    idx += seqSz;
+    XMEMCPY(output + idx, ver, verSz);
+    idx += verSz;
+    XMEMCPY(output + idx, pkAlg, pkAlgSz);
+    idx += pkAlgSz;
+    XMEMCPY(output + idx, params, paramSz);
+    idx += paramSz;
+    output[idx++] = ASN_OCTET_STRING;
+    output[idx++] = (byte)(prvSz + leadingPriv + keyBufSz);
+    XMEMCPY(output + idx, prv, prvSz);
+    idx += prvSz;
+    if (leadingPriv) {
+        output[idx++] = 0;
+    }
+    XMEMCPY(output + idx, keyBuf, keyBufSz);
+    idx += keyBufSz;
+
+    XFREE(params, NULL, DYNAMIC_TYPE_TMP_BUFFER);
+
+    return idx;
+}
+
 
 int wc_DhKeyDecode(const byte* input, word32* inOutIdx, DhKey* key, word32 inSz)
 {
