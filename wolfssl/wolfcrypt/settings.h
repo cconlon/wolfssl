@@ -150,6 +150,9 @@
 /* Uncomment next line if building for RIOT-OS */
 /* #define WOLFSSL_RIOT_OS */
 
+/* Uncomment next line if building for Nucleus */
+/* #define WOLFSSL_NUCLEUS */
+
 #include <wolfssl/wolfcrypt/visibility.h>
 
 #ifdef WOLFSSL_USER_SETTINGS
@@ -418,6 +421,29 @@
     #define NO_FILE_SYSTEM
     #define USE_CERT_BUFFERS_2048
     #define HAVE_ECC
+#endif
+
+#ifdef WOLFSSL_NUCLEUS
+    #define NO_WRITEV
+    #define NO_WOLFSSL_DIR
+
+    #ifndef USER_TIME
+        #error User must define XTIME, see manual
+    #endif
+
+    extern void* nucleus_malloc(unsigned long size, void* heap, int type);
+    extern void* nucleus_realloc(void* ptr, unsigned long size, void* heap,
+                                 int type);
+    extern void  nucleus_free(void* ptr, void* heap, int type);
+
+    #define XMALLOC(s, h, type)  nucleus_malloc
+    #define XREALLOC(p, n, h, t) nucleus_realloc
+    #define XFREE(p, h, type)    nucleus_free
+
+    #define XSTRLEN(s1)       strlen((s1))
+    #define XSTRNCPY(s1,s2,n) strncpy((s1),(s2),(n))
+    #define XSTRSTR(s1,s2)    strstr((s1),(s2))
+    #define XSTRNSTR(s1,s2,n) mystrnstr((s1),(s2),(n))
 #endif
 
 #ifdef WOLFSSL_NRF5x

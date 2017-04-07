@@ -79,6 +79,9 @@
     #elif defined(WOLFSSL_VXWORKS)
         #include <sockLib.h>
         #include <errno.h>
+    #elif defined(WOLFSSL_NUCLEUS)
+        #include <externs.h>
+        #include <errno.h>
     #elif defined(WOLFSSL_ATMEL)
         #include "socket/include/socket.h"
     #elif defined(INTIME_RTOS)
@@ -203,6 +206,14 @@
     #define SOCKET_EPIPE        FREERTOS_SOCKET_ERROR
     #define SOCKET_ECONNREFUSED FREERTOS_SOCKET_ERROR
     #define SOCKET_ECONNABORTED FREERTOS_SOCKET_ERROR
+#elif defined(WOLFSSL_NUCLEUS)
+    #define SOCKET_EWOULDBLOCK NU_WOULD_BLOCK
+    #define SOCKET_EAGAIN      NU_WOULD_BLOCK
+    #define SOCKET_ECONNRESET  NU_NOT_CONNECTED
+    #define SOCKET_EINTR       NU_NOT_CONNECTED
+    #define SOCKET_EPIPE       NU_NOT_CONNECTED
+    #define SOCKET_ECONNREFUSED NU_CONNECTION_REFUSED
+    #define SOCKET_ECONNABORTED NU_NOT_CONNECTED
 #else
     #define SOCKET_EWOULDBLOCK EWOULDBLOCK
     #define SOCKET_EAGAIN      EAGAIN
@@ -229,6 +240,9 @@
 #elif defined(FREERTOS_TCP)
     #define RECV_FUNCTION(a,b,c,d)  FreeRTOS_recv((Socket_t)(a),(void*)(b), (size_t)(c), (BaseType_t)(d))
     #define SEND_FUNCTION(a,b,c,d)  FreeRTOS_send((Socket_t)(a),(void*)(b), (size_t)(c), (BaseType_t)(d))
+#elif defined(WOLFSSL_NUCLEUS)
+    #define SEND_FUNCTION NU_Send
+    #define RECV_FUNCTION NU_Recv
 #else
     #define SEND_FUNCTION send
     #define RECV_FUNCTION recv
