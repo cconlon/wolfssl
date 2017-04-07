@@ -175,6 +175,13 @@
         #define printf dc_log_printf
 #endif
 
+#ifdef WOLFSSL_PB
+    #include <stdarg.h>
+    int wolfssl_pb_print(const char*, ...);
+    #undef printf
+    #define printf wolfssl_pb_print
+#endif
+
 #include "wolfcrypt/test/test.h"
 
 #ifdef USE_WOLFSSL_MEMORY
@@ -346,6 +353,23 @@ static void myFipsCb(int ok, int err, const char* hash)
         static byte gTestMemory[100000];
     #endif
 #endif
+
+#ifdef WOLFSSL_PB
+int wolfssl_pb_print(const char* msg, ...)
+{
+    int ret;
+    va_list args;
+    char tmpBuf[80];
+
+    va_start(args, msg);
+    ret = vsprint(tmpBuf, msg, args);
+    va_end(args);
+
+    fnDumpStringToSystemLog(tmpBuf);
+
+    return ret;
+}
+#endif /* WOLFSSL_PB */
 
 #ifdef HAVE_STACK_SIZE
 THREAD_RETURN WOLFSSL_THREAD wolfcrypt_test(void* args)
