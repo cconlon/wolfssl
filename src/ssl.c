@@ -3073,7 +3073,7 @@ int wolfSSL_get_error(WOLFSSL* ssl, int ret)
 }
 
 
-/* retrieve alert history, WOLFSSL_SUCCESS on ok */
+/* retrieve alert history including last rx/tx, WOLFSSL_SUCCESS on ok */
 int wolfSSL_get_alert_history(WOLFSSL* ssl, WOLFSSL_ALERT_HISTORY *h)
 {
     if (ssl && h) {
