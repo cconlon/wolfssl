@@ -42930,6 +42930,24 @@ void* wolfSSL_get_jobject(WOLFSSL* ssl)
     return NULL;
 }
 
+int wolfSSL_LockJNIMutex(WOLFSSL* ssl)
+{
+    WOLFSSL_ENTER("wolfSSL_LockJNIMutex");
+    if (ssl == NULL)
+        return BAD_MUTEX_E;
+
+    return wc_LockMutex(&ssl->jniLock);
+}
+
+int wolfSSL_UnLockJNIMutex(WOLFSSL* ssl)
+{
+    WOLFSSL_ENTER("wolfSSL_UnLockJNIMutex");
+    if (ssl == NULL)
+        return BAD_MUTEX_E;
+
+    return wc_UnLockMutex(&ssl->jniLock);
+}
+
 #endif /* WOLFSSL_JNI */
 
 

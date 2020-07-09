@@ -5901,6 +5901,14 @@ int InitSSL(WOLFSSL* ssl, WOLFSSL_CTX* ctx, int writeDup)
     }
 #endif /* HAVE_SECURE_RENEGOTIATION */
 
+#ifdef WOLFSSL_JNI
+    /* initialize session mutex for JSSE */
+    if (wc_InitMutex(&ssl->jniLock) != 0) {
+        WOLFSSL_MSG("Mutex error on JNI jniLock init");
+        return BAD_MUTEX_E;
+    }
+#endif
+
     return 0;
 }
 
@@ -6457,6 +6465,9 @@ void SSL_ResourceFree(WOLFSSL* ssl)
 #if defined(OPENSSL_ALL) || defined(WOLFSSL_QT)
     wolfSSL_sk_CIPHER_free(ssl->supportedCiphers);
     wolfSSL_sk_X509_free(ssl->peerCertChain);
+#endif
+#ifdef WOLFSSL_JNI
+    wc_FreeMutex(&ssl->jniLock);
 #endif
 }
 

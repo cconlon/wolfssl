@@ -3683,6 +3683,8 @@ WOLFSSL_API int wolfSSL_CTX_get_verify_mode(WOLFSSL_CTX* ctx);
 #ifdef WOLFSSL_JNI
 WOLFSSL_API int wolfSSL_set_jobject(WOLFSSL* ssl, void* objPtr);
 WOLFSSL_API void* wolfSSL_get_jobject(WOLFSSL* ssl);
+WOLFSSL_API int wolfSSL_LockJNIMutex(WOLFSSL* ssl);
+WOLFSSL_API int wolfSSL_UnLockJNIMutex(WOLFSSL* ssl);
 #endif /* WOLFSSL_JNI */
 
 

@@ -4207,7 +4207,8 @@ struct WOLFSSL {
     #endif
 #endif /* HAVE_SECRET_CALLBACK */
 #ifdef WOLFSSL_JNI
-        void* jObjectRef;     /* reference to WolfSSLSession in JNI wrapper */
+        void* jObjectRef;      /* reference to WolfSSLSession in JNI wrapper */
+        wolfSSL_Mutex jniLock; /* protect thread access to WOLFSSL */
 #endif /* WOLFSSL_JNI */
 #ifdef WOLFSSL_EARLY_DATA
     EarlyDataState earlyData;
