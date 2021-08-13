@@ -11306,6 +11306,9 @@ void wolfSSL_CTX_set_verify(WOLFSSL_CTX* ctx, int mode, VerifyCallback vc)
     ctx->verifyNone     = 0;
     ctx->failNoCert     = 0;
     ctx->failNoCertxPSK = 0;
+#if defined(WOLFSSL_TLS13) && defined(WOLFSSL_POST_HANDSHAKE_AUTH)
+    ctx->verifyPostHandshake = 0;
+#endif
 
     if (mode != WOLFSSL_VERIFY_DEFAULT) {
         if (mode == WOLFSSL_VERIFY_NONE) {
@@ -11321,6 +11324,11 @@ void wolfSSL_CTX_set_verify(WOLFSSL_CTX* ctx, int mode, VerifyCallback vc)
             if (mode & WOLFSSL_VERIFY_FAIL_IF_NO_PEER_CERT) {
                 ctx->failNoCert = 1;
             }
+#if defined(WOLFSSL_TLS13) && defined(WOLFSSL_POST_HANDSHAKE_AUTH)
+            if (mode & WOLFSSL_VERIFY_POST_HANDSHAKE) {
+                ctx->verifyPostHandshake = 1;
+            }
+#endif
         }
     }
 
@@ -11355,6 +11363,10 @@ void wolfSSL_set_verify(WOLFSSL* ssl, int mode, VerifyCallback vc)
                                         == WOLFSSL_VERIFY_FAIL_IF_NO_PEER_CERT;
     ssl->options.failNoCertxPSK = (mode & WOLFSSL_VERIFY_FAIL_EXCEPT_PSK)
                                         == WOLFSSL_VERIFY_FAIL_EXCEPT_PSK;
+#if defined(WOLFSSL_TLS13) && defined(WOLFSSL_POST_HANDSHAKE_AUTH)
+    ssl->options.verifyPostHandshake = (mode & WOLFSSL_VERIFY_POST_HANDSHAKE)
+                                        == WOLFSSL_VERIFY_POST_HANDSHAKE;
+#endif
 
     ssl->verifyCallback = vc;
 }
@@ -46930,6 +46942,11 @@ int wolfSSL_get_verify_mode(const WOLFSSL* ssl) {
         if (ssl->options.failNoCertxPSK) {
             mode |= WOLFSSL_VERIFY_FAIL_EXCEPT_PSK;
         }
+#if defined(WOLFSSL_TLS13) && defined(WOLFSSL_POST_HANDSHAKE_AUTH)
+        if (ssl->options.verifyPostHandshake) {
+            mode |= WOLFSSL_VERIFY_POST_HANDSHAKE;
+        }
+#endif
     }
 
     WOLFSSL_LEAVE("wolfSSL_get_verify_mode", mode);
@@ -46958,6 +46975,11 @@ int wolfSSL_CTX_get_verify_mode(const WOLFSSL_CTX* ctx)
         if (ctx->failNoCertxPSK) {
             mode |= WOLFSSL_VERIFY_FAIL_EXCEPT_PSK;
         }
+#if defined(WOLFSSL_TLS13) && defined(WOLFSSL_POST_HANDSHAKE_AUTH)
+        if (ctx->verifyPostHandshake) {
+            mode |= WOLFSSL_VERIFY_POST_HANDSHAKE;
+        }
+#endif
     }
 
     WOLFSSL_LEAVE("wolfSSL_CTX_get_verify_mode", mode);
