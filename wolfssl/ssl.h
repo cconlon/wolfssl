@@ -2149,9 +2149,6 @@ enum {
                               * OPENSSL_COMPATIBLE_DEFAULTS. */
     SSL_MODE_RELEASE_BUFFERS = -1, /* For libwebsockets build. No current use. */
 
-    BIO_CLOSE   = 1,
-    BIO_NOCLOSE = 0,
-
     X509_FILETYPE_PEM = 8,
 
     X509_V_OK                                    = 0,
