@@ -122,6 +122,10 @@ struct WOLFSSL_EC_KEY {
     char           form;         /* Either POINT_CONVERSION_UNCOMPRESSED or
                                   * POINT_CONVERSION_COMPRESSED */
     word16 pkcs8HeaderSz;
+#ifndef SINGLE_THREADED
+    wolfSSL_Mutex  refMutex;     /* ref count mutex */
+#endif
+    int refCount;                /* reference count */
 
     /* option bits */
     byte inSet:1;        /* internal set from external ? */
@@ -141,6 +145,8 @@ size_t wolfSSL_EC_get_builtin_curves(WOLFSSL_EC_BUILTIN_CURVE *r,size_t nitems);
 
 WOLFSSL_API
 WOLFSSL_EC_KEY *wolfSSL_EC_KEY_dup(const WOLFSSL_EC_KEY *src);
+WOLFSSL_API
+int wolfSSL_EC_KEY_up_ref(WOLFSSL_EC_KEY* key);
 
 WOLFSSL_API
 int wolfSSL_ECPoint_i2d(const WOLFSSL_EC_GROUP *curve,
@@ -302,6 +308,7 @@ char* wolfSSL_EC_POINT_point2hex(const WOLFSSL_EC_GROUP* group,
 #define EC_KEY_new                      wolfSSL_EC_KEY_new
 #define EC_KEY_free                     wolfSSL_EC_KEY_free
 #define EC_KEY_dup                      wolfSSL_EC_KEY_dup
+#define EC_KEY_up_ref                   wolfSSL_EC_KEY_up_ref
 #define EC_KEY_get0_public_key          wolfSSL_EC_KEY_get0_public_key
 #define EC_KEY_get0_group               wolfSSL_EC_KEY_get0_group
 #define EC_KEY_set_private_key          wolfSSL_EC_KEY_set_private_key
