@@ -43757,6 +43757,56 @@ static void test_wolfSSL_EVP_PKEY_missing_parameters(void)
     printf(resultFmt, passed);
 #endif
 }
+static void test_wolfSSL_EVP_PKEY_copy_parameters(void)
+{
+#if defined(OPENSSL_EXTRA) && !defined(NO_DH)
+    WOLFSSL_EVP_PKEY* params = NULL;
+    WOLFSSL_EVP_PKEY* copy = NULL;
+    DH* dh = NULL;
+    BIGNUM* p1;
+    BIGNUM* g1;
+    BIGNUM* q1;
+    BIGNUM* p2;
+    BIGNUM* g2;
+    BIGNUM* q2;
+
+    printf(testingFmt, "wolfSSL_EVP_PKEY_copy_parameters");
+
+    /* create DH with DH_get_2048_256 params */
+    AssertNotNull(params = wolfSSL_EVP_PKEY_new());
+    AssertNotNull(dh = DH_get_2048_256());
+    AssertIntEQ(EVP_PKEY_set1_DH(params, dh), WOLFSSL_SUCCESS);
+    DH_get0_pqg(dh, (const BIGNUM**)&p1,
+                    (const BIGNUM**)&q1,
+                    (const BIGNUM**)&g1);
+    DH_free(dh);
+
+    /* create DH with random generated DH params */
+    AssertNotNull(copy = wolfSSL_EVP_PKEY_new());
+    AssertNotNull(dh = DH_generate_parameters(2048, 2, NULL, NULL));
+    AssertIntEQ(EVP_PKEY_set1_DH(copy, dh), WOLFSSL_SUCCESS);
+    DH_free(dh);
+
+    AssertIntEQ(EVP_PKEY_copy_parameters(copy, params), WOLFSSL_SUCCESS);
+    AssertNotNull(dh = EVP_PKEY_get1_DH(copy));
+    AssertNotNull(dh->p);
+    AssertNotNull(dh->g);
+    AssertNotNull(dh->q);
+    DH_get0_pqg(dh, (const BIGNUM**)&p2,
+                    (const BIGNUM**)&q2,
+                    (const BIGNUM**)&g2);
+
+    AssertIntEQ(BN_cmp(p1, p2), 0);
+    AssertIntEQ(BN_cmp(q1, q2), 0);
+    AssertIntEQ(BN_cmp(g1, g2), 0);
+
+    DH_free(dh);
+    EVP_PKEY_free(copy);
+    EVP_PKEY_free(params);
+
+    printf(resultFmt, passed);
+#endif
+}
 static void test_wolfSSL_EVP_PKEY_CTX_set_rsa_keygen_bits(void)
 {
     WOLFSSL_EVP_PKEY*   pkey;
@@ -53312,6 +53362,7 @@ void ApiTest(void)
     test_wolfSSL_EVP_PKEY_keygen();
     test_wolfSSL_EVP_PKEY_keygen_init();
     test_wolfSSL_EVP_PKEY_missing_parameters();
+    test_wolfSSL_EVP_PKEY_copy_parameters();
     test_wolfSSL_EVP_PKEY_CTX_set_rsa_keygen_bits();
     test_wolfSSL_EVP_CIPHER_CTX_iv_length();
     test_wolfSSL_EVP_CIPHER_CTX_key_length();

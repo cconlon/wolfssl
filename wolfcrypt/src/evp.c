@@ -2247,11 +2247,44 @@ int wolfSSL_EVP_PKEY_copy_parameters(WOLFSSL_EVP_PKEY *to,
         }
         break;
 #endif
-#ifndef NO_RSA
-    case EVP_PKEY_RSA:
-#endif
 #ifndef NO_DH
     case EVP_PKEY_DH:
+        if (from->dh) {
+            WOLFSSL_BIGNUM* cpy;
+            if (!to->dh && !(to->dh = wolfSSL_DH_new())) {
+                WOLFSSL_MSG("wolfSSL_DH_new error");
+                return WOLFSSL_FAILURE;
+            }
+
+            /* free existing BIGNUMs if needed before copying over new */
+            wolfSSL_BN_free(to->dh->p);
+            wolfSSL_BN_free(to->dh->g);
+            wolfSSL_BN_free(to->dh->q);
+
+            if (!(cpy = wolfSSL_BN_dup(from->dh->p))) {
+                WOLFSSL_MSG("wolfSSL_BN_dup error, DH p");
+                return WOLFSSL_FAILURE;
+            }
+            to->dh->p = cpy;
+            if (!(cpy = wolfSSL_BN_dup(from->dh->g))) {
+                WOLFSSL_MSG("wolfSSL_BN_dup error, DH g");
+                return WOLFSSL_FAILURE;
+            }
+            to->dh->g = cpy;
+            if (!(cpy = wolfSSL_BN_dup(from->dh->q))) {
+                WOLFSSL_MSG("wolfSSL_BN_dup error, DH q");
+                return WOLFSSL_FAILURE;
+            }
+            to->dh->q = cpy;
+        }
+        else {
+            WOLFSSL_MSG("Missing DH struct");
+            return WOLFSSL_FAILURE;
+        }
+        break;
+#endif
+#ifndef NO_RSA
+    case EVP_PKEY_RSA:
 #endif
     default:
         WOLFSSL_MSG("Copy parameters not available for this key type");
