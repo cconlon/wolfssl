@@ -101,7 +101,9 @@ static int d2i_make_pkey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
  * @param [in]      memSz  Size of key data in bytes.
  * @param [in]      priv   1 means private key, 0 means public key.
  * @return  1 on success.
- * @return  0 otherwise.
+ * @return  0 when input was recognized as this key type but
+ *            object creation/import failed.
+ * @return  WOLFSSL_FATAL_ERROR when input is not this key type.
  */
 static int d2iTryRsaKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
     long memSz, int priv)
@@ -169,7 +171,9 @@ static int d2iTryRsaKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
  * @param [in]      memSz  Size of key data in bytes.
  * @param [in]      priv   1 means private key, 0 means public key.
  * @return  1 on success.
- * @return  0 otherwise.
+ * @return  0 when input was recognized as this key type but
+ *            object creation/import failed.
+ * @return  WOLFSSL_FATAL_ERROR when input is not this key type.
  */
 static int d2iTryEccKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
     long memSz, int priv)
@@ -241,7 +245,9 @@ static int d2iTryEccKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
  * @param [in]      memSz  Size of key data in bytes.
  * @param [in]      priv   1 means private key, 0 means public key.
  * @return  1 on success.
- * @return  0 otherwise.
+ * @return  0 when input was recognized as this key type but
+ *            object creation/import failed.
+ * @return  WOLFSSL_FATAL_ERROR when input is not this key type.
  */
 static int d2iTryDsaKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
     long memSz, int priv)
@@ -316,7 +322,9 @@ static int d2iTryDsaKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
  * @param [in]      memSz  Size of key data in bytes.
  * @param [in]      priv   1 means private key, 0 means public key.
  * @return  1 on success.
- * @return  0 otherwise.
+ * @return  0 when input was recognized as this key type but
+ *            object creation/import failed.
+ * @return  WOLFSSL_FATAL_ERROR when input is not this key type.
  */
 static int d2iTryDhKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
     long memSz, int priv)
@@ -384,7 +392,9 @@ static int d2iTryDhKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
  * @param [in]      memSz  Size of key data in bytes.
  * @param [in]      priv   1 means private key, 0 means public key.
  * @return  1 on success.
- * @return  0 otherwise.
+ * @return  0 when input was recognized as this key type but
+ *            object creation/import failed.
+ * @return  WOLFSSL_FATAL_ERROR when input is not this key type.
  */
 static int d2iTryAltDhKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
     long memSz, int priv)
@@ -404,17 +414,17 @@ static int d2iTryAltDhKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
     key = (DhKey*)dhObj->internal;
     /* Try decoding data as a DH public key. */
     if (wc_DhKeyDecode(mem, &keyIdx, key, (word32)memSz) != 0) {
-        ret = 0;
+        wolfSSL_DH_free(dhObj);
+        return WOLFSSL_FATAL_ERROR;
     }
-    if (ret == 1) {
-        /* DH key has data and is external to DH object. */
-        elements = ELEMENT_P | ELEMENT_G | ELEMENT_Q | ELEMENT_PUB;
-        if (priv) {
-            elements |= ELEMENT_PRV;
-        }
-        if (SetDhExternal_ex(dhObj, elements) != WOLFSSL_SUCCESS ) {
-            ret = 0;
-        }
+
+    /* DH key has data and is external to DH object. */
+    elements = ELEMENT_P | ELEMENT_G | ELEMENT_Q | ELEMENT_PUB;
+    if (priv) {
+        elements |= ELEMENT_PRV;
+    }
+    if (SetDhExternal_ex(dhObj, elements) != WOLFSSL_SUCCESS ) {
+        ret = 0;
     }
     if (ret == 1) {
         /* Create an EVP PKEY object. */
@@ -478,7 +488,9 @@ static int d2i_falcon_pub_key_level(falcon_key* falcon, byte level,
  * @param [in]      memSz  Size of key data in bytes.
  * @param [in]      priv   1 means private key, 0 means public key.
  * @return  1 on success.
- * @return  0 otherwise.
+ * @return  0 when input was recognized as this key type but
+ *            object creation/import failed.
+ * @return  WOLFSSL_FATAL_ERROR when input is not this key type.
  */
 static int d2iTryFalconKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
     long memSz, int priv)
@@ -540,8 +552,28 @@ static int d2iTryFalconKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
 static int d2i_dilithium_priv_key_level(dilithium_key* dilithium, byte level,
     const unsigned char* mem, long memSz)
 {
-    return (wc_dilithium_set_level(dilithium, level) == 0) &&
-           (wc_dilithium_import_private(mem, (word32)memSz, dilithium) == 0);
+    word32 keyIdx = 0;
+
+    if (wc_dilithium_set_level(dilithium, level) != 0) {
+        return 0;
+    }
+    /* Accept raw private-key bytes or DER (PKCS#8). PrivateKeyDecode is DER
+     * only, so try raw import first and fall back to the DER decoder. */
+    if (wc_dilithium_import_private(mem, (word32)memSz, dilithium) == 0) {
+        return 1;
+    }
+
+    /* Restore clean state and try DER */
+    if (wc_dilithium_set_level(dilithium, level) != 0) {
+        return 0;
+    }
+
+    if (wc_Dilithium_PrivateKeyDecode(mem, &keyIdx, dilithium,
+        (word32)memSz) != 0) {
+        return 0;
+    }
+
+    return 1;
 }
 #endif /* WOLFSSL_DILITHIUM_PRIVATE_KEY */
 
@@ -558,8 +590,16 @@ static int d2i_dilithium_priv_key_level(dilithium_key* dilithium, byte level,
 static int d2i_dilithium_pub_key_level(dilithium_key* dilithium, byte level,
     const unsigned char* mem, long memSz)
 {
-    return (wc_dilithium_set_level(dilithium, level) == 0) &&
-           (wc_dilithium_import_public(mem, (word32)memSz, dilithium) == 0);
+    word32 keyIdx = 0;
+
+    if (wc_dilithium_set_level(dilithium, level) != 0) {
+        return 0;
+    }
+    if (wc_Dilithium_PublicKeyDecode(mem, &keyIdx, dilithium,
+        (word32)memSz) != 0) {
+        return 0;
+    }
+    return 1;
 }
 
 /**
@@ -571,7 +611,9 @@ static int d2i_dilithium_pub_key_level(dilithium_key* dilithium, byte level,
  * @param [in]      memSz  Size of key data in bytes.
  * @param [in]      priv   1 means private key, 0 means public key.
  * @return  1 on success.
- * @return  0 otherwise.
+ * @return  0 when input was recognized as this key type but
+ *            object creation/import failed.
+ * @return  WOLFSSL_FATAL_ERROR when input is not this key type.
  */
 static int d2iTryDilithiumKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
     long memSz, int priv)
@@ -635,13 +677,14 @@ static int d2iTryDilithiumKey(WOLFSSL_EVP_PKEY** out, const unsigned char* mem,
  * @param [in]      mem    Memory containing key data.
  * @param [in]      memSz  Size of key data in bytes.
  * @param [in]      priv   1 means private key, 0 means public key.
- * @return  1 on success.
- * @return  0 otherwise.
+ * @return  Non-NULL WOLFSSL_EVP_PKEY* on success.
+ * @return  NULL on bad arguments or unrecognized input type.
  */
 static WOLFSSL_EVP_PKEY* d2i_evp_pkey_try(WOLFSSL_EVP_PKEY** out,
     const unsigned char** in, long inSz, int priv)
 {
     WOLFSSL_EVP_PKEY* pkey = NULL;
+    int ret = 0;
 
     WOLFSSL_ENTER("d2i_evp_pkey_try");
 
@@ -656,19 +699,19 @@ static WOLFSSL_EVP_PKEY* d2i_evp_pkey_try(WOLFSSL_EVP_PKEY** out,
 
 #if !defined(NO_RSA)
     if (d2iTryRsaKey(&pkey, *in, inSz, priv) >= 0) {
-        ;
+        ret = 1;
     }
     else
 #endif /* NO_RSA */
 #if defined(HAVE_ECC) && defined(OPENSSL_EXTRA)
     if (d2iTryEccKey(&pkey, *in, inSz, priv) >= 0) {
-        ;
+        ret = 1;
     }
     else
 #endif /* HAVE_ECC && OPENSSL_EXTRA */
 #if !defined(NO_DSA)
     if (d2iTryDsaKey(&pkey, *in, inSz, priv) >= 0) {
-        ;
+        ret = 1;
     }
     else
 #endif /* NO_DSA */
@@ -676,7 +719,7 @@ static WOLFSSL_EVP_PKEY* d2i_evp_pkey_try(WOLFSSL_EVP_PKEY** out,
 #if !defined(HAVE_FIPS) || (defined(HAVE_FIPS_VERSION) && \
     (HAVE_FIPS_VERSION > 2))
     if (d2iTryDhKey(&pkey, *in, inSz, priv) >= 0) {
-        ;
+        ret = 1;
     }
     else
 #endif /* !HAVE_FIPS || HAVE_FIPS_VERSION > 2 */
@@ -686,7 +729,7 @@ static WOLFSSL_EVP_PKEY* d2i_evp_pkey_try(WOLFSSL_EVP_PKEY** out,
 #if !defined(HAVE_FIPS) || (defined(HAVE_FIPS_VERSION) && \
         (HAVE_FIPS_VERSION > 2))
     if (d2iTryAltDhKey(&pkey, *in, inSz, priv) >= 0) {
-        ;
+        ret = 1;
     }
     else
 #endif /* !HAVE_FIPS || HAVE_FIPS_VERSION > 2 */
@@ -694,18 +737,22 @@ static WOLFSSL_EVP_PKEY* d2i_evp_pkey_try(WOLFSSL_EVP_PKEY** out,
 
 #ifdef HAVE_FALCON
     if (d2iTryFalconKey(&pkey, *in, inSz, priv) >= 0) {
-        ;
+        ret = 1;
     }
     else
 #endif /* HAVE_FALCON */
 #ifdef HAVE_DILITHIUM
     if (d2iTryDilithiumKey(&pkey, *in, inSz, priv) >= 0) {
-        ;
+        ret = 1;
     }
     else
 #endif /* HAVE_DILITHIUM */
     {
         WOLFSSL_MSG("d2i_evp_pkey_try couldn't determine key type");
+    }
+
+    if (!ret) {
+        return NULL;
     }
 
     if ((pkey != NULL) && (out != NULL)) {
